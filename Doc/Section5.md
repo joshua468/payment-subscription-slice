@@ -4,26 +4,28 @@ This document explains the design decisions behind the subscription slice. It is
 written to be read alongside `Doc/Agents.md` (project rules) and the code in
 `lib/`, `app/api/`, and `prisma/schema.prisma`.
 
-Prices used throughout this document:
+Prices used throughout this document. Currency is **NGN**; the minor unit is
+the kobo (100 kobo = ₦1). Amounts are stored as whole kobo:
 
-| Item             | Minor units (cents) | Displayed |
-| ---------------- | ------------------- | --------- |
-| Pro · monthly    | 1050                | $10.50    |
-| Pro · yearly     | 10500               | $105.00   |
+| Item             | Minor units (kobo) | Displayed  |
+| ---------------- | ------------------ | ---------- |
+| Pro · monthly    | 500000             | ₦5,000.00  |
+| Pro · yearly     | 5000000            | ₦50,000.00 |
 
 ---
 
 ## 1. Minor units: money is never stored as a decimal
 
-Every amount is stored as a whole number in its smallest unit — cents — with
-the currency stored alongside it. There is no `price: 10.50` field anywhere in
-the schema; there is `amountMinorUnits: Integer` and `currency: String`.
+Every amount is stored as a whole number in its smallest unit — kobo for NGN,
+this slice's currency — with the currency stored alongside it. There is no
+`price: 5000` naira-decimal field anywhere in the schema; there is
+`amountMinorUnits: Integer` and `currency: String`.
 
 **Why.** Floating-point decimals cannot represent most money values exactly.
 `0.1 + 0.2 !== 0.3`. Once you multiply a float by a transaction volume, round it
 to two places, and persist it, you have introduced rounding errors that make
 ledgers disagree with the provider and with the customer’s card statement. In a
-system that is the source of truth for a dispute, one wrong cent is the
+system that is the source of truth for a dispute, one wrong kobo is the
 difference between "the ledger matches" and "the ledger is untrustworthy".
 Integers in minor units are exact for every calculation that ends in a round
 amount, and rounding happens exactly once — at the final charge.
@@ -82,6 +84,12 @@ Entitlement is **derived from** the log: the success page polls the server and
 the server reads the log; nothing is granted from a URL redirect or a client
 claim (rule 2 of `Agents.md`).
 
+The success page has exactly two states while polling: *Confirming your
+payment…* (payment received by the provider but fulfilment not yet logged) and
+*You are all set* (a fulfilment row exists). There is deliberately no
+*Payment received* state — such wording would imply the redirect itself
+confirmed payment, which it does not.
+
 ---
 
 ## 4. Idempotency in payments
@@ -100,7 +108,7 @@ from a webhook anyway), and cannot extend a period twice.
 **Double-pay defence.** If the same user tries to buy yearly twice in one
 minute, the checkout endpoint returns `409 Conflict` — a subscription for that
 interval is already active and the money is **rejected**, not absorbed. There is
-no silent "we took a second $105 and did nothing."
+no silent "we took a second ₦50,000 and did nothing."
 
 ---
 
@@ -133,27 +141,29 @@ charge.
 
 **Worked example — upgrade on day 12 of a 30-day monthly cycle.**
 
-- Current plan: Pro monthly, 1050 cents. New plan: Pro yearly, 10500 cents.
+- Current plan: Pro monthly, 500000 kobo (₦5,000). New plan: Pro yearly,
+  5000000 kobo (₦50,000).
 - Last renewal was 12 days ago, so the user has already purchased 12 days of the
   month that they will not use.
 - Days remaining in the current period: `30 − 12 = 18`.
-- Daily rate for the current plan: `1050 / 30 = 35.0` cents/day.
-- Credit for unused days: `35.0 × 18 = 630` cents ($6.30).
-- Prorated charge: `10500 − 630 = 9870` cents ($98.70), already a whole number so
-  no rounding is needed.
+- Daily rate for the current plan: `500000 / 30 = 16,666.66...` kobo/day.
+- Credit for unused days: `16,666.66... × 18 = 300,000` kobo (₦3,000), exact
+  because 18 days at 1/30 of the month is precisely 60% of the paid month.
+- Prorated charge: `5000000 − 300000 = 4,700,000` kobo (₦47,000), already a
+  whole number so no rounding is needed.
 
 Ledger result (each an append-only `PaymentLog` row plus the initiation row):
 
-| Stage       | Amount recorded      | Where |
-| ----------- | -------------------- | ----- |
-| initiation  | charge 9870          | raw payload |
-| verification| provider: successful | raw payload |
-| fulfilment  | period end = now + 365 days | row + subscription |
+| Stage        | Amount recorded      | Where                     |
+| ------------ | -------------------- | ------------------------- |
+| initiation   | charge 4,700,000     | raw payload               |
+| verification | provider: successful | raw payload               |
+| fulfilment   | period end = now + 365 days | row + subscription |
 
 If instead the upgrade happens with only 7 days left of a 30-day monthly at
-$10.00 (1000): credit `= 1000/30 × 7 = 233.333333...` cents; charge `= 10000 −
-233.333333 = 9766.666666` cents; **rounded to 9767** cents ($97.67). The credit
-is never rounded before subtraction.
+₦5,000 (500000): credit `= 500000/30 × 7 = 116,666.66...` kobo; charge `=
+5000000 − 116,666.66... = 4,883,333.33...` kobo; **rounded to 4,883,333** kobo
+(₦48,333.33). The credit is never rounded before subtraction.
 
 Downgrade (yearly → monthly) is the mirror case and is deliberately **not**
 charged: the brief requires the change to apply at the **end** of the current
@@ -219,8 +229,9 @@ this closes the "spam the button → many pending charges" path.
   transaction: initiation (amount charged), verification (confirmed with
   provider), fulfilment (what they got and until when). All append-only,
   keyed by provider event id.
-- **Upgrade on day 12.** 18 days remain → credit `1050/30 × 18 = 630` cents →
-  charge `10500 − 630 = 9870` cents. Full precision, single rounding at the end.
+- **Upgrade on day 12.** 18 days remain → credit `500000/30 × 18 = 300,000`
+  kobo (₦3,000) → charge `5000000 − 300000 = 4,700,000` kobo (₦47,000). Full
+  precision, single rounding at the end.
 - **Yearly paid twice in a minute.** Checkout rejects the second purchase with
   `409 Conflict` (`initiateSubscription`); the log shows one initiation, one
   verification, one fulfilment, and no duplicate charge.

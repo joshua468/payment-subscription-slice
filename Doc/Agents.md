@@ -40,11 +40,11 @@ Breaking any rule on this list means the task failed, even if the code compiles 
 ### Money & Financial Rules
 
 **1. Never store money as decimals or floating-point numbers.**  
-Store every amount in the smallest unit (cents) as a whole integer. Example: $10.50 = 1050 cents, stored as `1050` (INTEGER in database). Decimals accumulate rounding errors and cause charge discrepancies. [PRD: Data & Money Handling]
+Store every amount in the smallest unit (kobo for NGN) as a whole integer. Example: Pro monthly = ₦5,000 = 500,000 kobo, stored as `500000` (INTEGER in database). Decimals accumulate rounding errors and cause charge discrepancies. [PRD: Data & Money Handling]
 
 **2. Never grant entitlement based on a frontend claim or redirect alone.**  
 A user visiting the success URL directly, or a JavaScript call claiming "subscription active," must not grant a subscription. Entitlement is granted only after the server verifies payment through the payment log. Specifically:  
-- Success page is non-entitling; it polls the backend until the payment log shows `fulfilment` status.  
+- Success page is non-entitling; it polls the backend until the payment log shows `fulfilment` status. The page shows "Confirming your payment…" until then, then "You are all set"; there is no payment-received state driven by the redirect.  
 - Subscription record is updated only after payment log verification is complete.  
 [PRD: Payment Logging & Verification]
 
@@ -147,8 +147,8 @@ model Subscription {
   userId                  String    @unique
   plan                    String    // "Pro"; only one plan in this slice
   interval                String    // "monthly" or "yearly"
-  currency                String    // "USD", "NGN", etc.
-  amountMinorUnits        Int       // e.g., 1050 for $10.50 (stored as cents)
+  currency                String    // "NGN" (kobo) in this slice
+  amountMinorUnits        Int       // e.g., 500000 for ₦5,000 (stored as kobo)
   periodStart             DateTime
   periodEnd               DateTime
   status                  String    // "active", "pending_downgrade", "pending_cancellation", "payment_pending", "cancelled"
