@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Subscription {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  plan                  String
+  interval              String
+  currency              String
+  amountMinorUnits      Int
+  periodStart           DateTime?
+  periodEnd             DateTime?
+  status                String
+  flutterwaveSubId      String?
+  flutterwaveCustomerId String?
+  cancellationReason    String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  paymentLog PaymentLog[]
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@unique([userId, status])
+}
+
+model PaymentLog {
+  id                 String    @id @default(cuid())
+  subscriptionId     String
+  userId             String
+  stage              String
+  flutterwaveEventId String?   @unique
+  timestamp          DateTime  @default(now())
+  rawWebhookPayload  Json?
+  errorReason        String?
+  createdAt          DateTime  @default(now())
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@index([userId])
+  @@index([flutterwaveEventId])
+}
+
+model User {
+  id           String         @id
+  email        String?
+  name         String?
+  subscription Subscription?
+
+  @@map("users")
+}
