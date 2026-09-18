@@ -3,7 +3,7 @@
 **Version:** 1.0  
 **Status:** Approved — MVP  
 **Owner:** Product + Engineering  
-**Companion docs:** [`Doc/Agents.md`](./Agents.md) (operating rules), [`Doc/Section5.md`](./Section5.md) (architecture & money concepts)
+**Companion docs:** [`Doc/Agents.md`](./Agents.md) (operating rules), [`Doc/DOCUMENTION.md`](./DOCUMENTION.md) (architecture & money concepts)
 
 This PRD is the **source of truth** for the Payment & Subscription Slice. If any other
 file (including `Doc/Agents.md`) conflicts with this document, this document wins.

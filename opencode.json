@@ -3,7 +3,7 @@
   "instructions": [
     "Doc/PRD.md",
     "Doc/Agents.md",
-    "Doc/Section5.md"
+    "Doc/DOCUMENTION.md"
   ],
   "skills": {
     "paths": ["./skills"]
