@@ -1,0 +1,49 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "Doc/PRD.md",
+    "Doc/Agents.md",
+    "Doc/Section5.md"
+  ],
+  "skills": {
+    "paths": ["./skills"]
+  },
+  "agent": {
+    "billing-engine": {
+      "description": "Subscription lifecycle engine — state machine, proration math, cancellation, and applyDueTransitions. Use when working on lib/subscription/, lib/proration/, or the subscription model/transitions.",
+      "mode": "subagent",
+      "prompt": "{file:./agents/billing-engine.md}",
+      "permission": {
+        "bash": {
+          "*": "ask",
+          "npm run test": "allow",
+          "npx prisma generate": "allow"
+        }
+      }
+    },
+    "payment-integration": {
+      "description": "Flutterwave integration — webhook handling, signature verification, idempotency, server-side transaction verification, checkout initiation, and rate limiting. Use when working on lib/payment/, app/api/webhooks/, app/api/checkout/, app/api/verify/, or lib/rate-limit.ts.",
+      "mode": "subagent",
+      "prompt": "{file:./agents/payment-integration.md}",
+      "permission": {
+        "bash": {
+          "*": "ask",
+          "npm run test": "allow",
+          "npm run build": "allow"
+        }
+      }
+    },
+    "billing-ui-ux": {
+      "description": "Billing UI/UX — pages, components, design language, status badges, error/empty states, dark mode, accessibility. Use when working on app/billing/, app/plans/, app/checkout/success/, components/, or app/globals.css.",
+      "mode": "subagent",
+      "prompt": "{file:./agents/billing-ui-ux.md}",
+      "permission": {
+        "bash": {
+          "*": "ask",
+          "npm run build": "allow",
+          "npm run lint": "allow"
+        }
+      }
+    }
+  }
+}
