@@ -55,7 +55,11 @@ export async function POST(request: NextRequest) {
         customer: verified?.customerId
           ? { id: String(verified.customerId) }
           : undefined,
-        sub: verified?.sub ?? undefined,
+        // verifyTransaction's return type widens sub to string | number | null,
+        // but the FlutterwaveSubscription field is a string token.
+        sub: verified?.sub === undefined || verified?.sub === null
+          ? undefined
+          : String(verified.sub),
       };
       await fulfilFromWebhook(
         synthetic,

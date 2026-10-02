@@ -21,6 +21,7 @@ vi.mock("@/lib/payment/flutterwave", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/db";
+import { PLAN_CURRENCY, PRO_MONTHLY_MINOR_UNITS } from "@/lib/plans";
 import {
   fulfilFromWebhook,
   initiateSubscription,
@@ -67,7 +68,7 @@ describe("subscribe monthly happy path", () => {
     });
     expect(pending?.status).toBe("payment_pending");
     expect(pending?.interval).toBe("monthly");
-    expect(pending?.amountMinorUnits).toBe(1050);
+    expect(pending?.amountMinorUnits).toBe(PRO_MONTHLY_MINOR_UNITS);
 
     const initiation = await prisma.paymentLog.findFirst({
       where: { userId: mocks.USER_ID, stage: "initiation" },
@@ -80,14 +81,18 @@ describe("subscribe monthly happy path", () => {
 
     const txRef = payload.txRef!;
     expect(mocks.initiateCheckout).toHaveBeenCalledWith(
-      expect.objectContaining({ txRef, amountMajorUnits: "10.50" })
+      expect.objectContaining({
+        txRef,
+        currency: PLAN_CURRENCY,
+        amountMajorUnits: (PRO_MONTHLY_MINOR_UNITS / 100).toFixed(2),
+      })
     );
 
     // The user has NOT been granted entitlement yet — only the webhook can.
     mocks.verifyTransaction.mockResolvedValue({
       status: "successful",
-      amount: 1050,
-      currency: "USD",
+      amount: PRO_MONTHLY_MINOR_UNITS,
+      currency: PLAN_CURRENCY,
       txRef,
     });
 

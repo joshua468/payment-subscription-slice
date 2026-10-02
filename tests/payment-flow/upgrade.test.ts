@@ -25,6 +25,11 @@ import {
   initiateSubscription,
 } from "@/lib/subscription/service";
 import type { SubscriptionStatus } from "@/types/payment";
+import {
+  PLAN_CURRENCY,
+  PRO_MONTHLY_MINOR_UNITS,
+  PRO_YEARLY_MINOR_UNITS,
+} from "@/lib/plans";
 
 const MS_PER_DAY = 86_400_000;
 
@@ -46,8 +51,8 @@ async function seedMonthly(
       userId,
       plan: "Pro",
       interval: "monthly",
-      currency: "USD",
-      amountMinorUnits: 1050,
+      currency: PLAN_CURRENCY,
+      amountMinorUnits: PRO_MONTHLY_MINOR_UNITS,
       status,
       periodStart: new Date(Date.now() - 14.5 * MS_PER_DAY),
       periodEnd,
@@ -99,11 +104,16 @@ describe("prorated upgrade to yearly", () => {
     expect(outcome.kind).toBe("redirect");
     if (outcome.kind !== "redirect") return;
 
-    // 15 days remain → credit 1050/30×15 = 525 → charge 10500 − 525 = 9975.
+    // 15 days remain → credit 500000/30×15 = 250000 → charge 5000000 − 250000 = 4750000.
     const proration = outcome.result.proration!;
+    const expectedCredit = Math.round(
+      (PRO_MONTHLY_MINOR_UNITS / 30) * 15
+    );
     expect(proration.daysRemaining).toBe(15);
-    expect(proration.creditMinorUnits).toBe(525);
-    expect(proration.proratedChargeMinorUnits).toBe(9975);
+    expect(proration.creditMinorUnits).toBe(expectedCredit);
+    expect(proration.proratedChargeMinorUnits).toBe(
+      PRO_YEARLY_MINOR_UNITS - expectedCredit
+    );
 
     const initLog = await prisma.paymentLog.findFirst({
       where: { userId: mocks.USER_ID, stage: "initiation" },
@@ -112,7 +122,9 @@ describe("prorated upgrade to yearly", () => {
     const payload = (initLog?.rawWebhookPayload ?? {}) as {
       amountChargedMinorUnits?: number;
     };
-    expect(payload.amountChargedMinorUnits).toBe(9975);
+    expect(payload.amountChargedMinorUnits).toBe(
+      PRO_YEARLY_MINOR_UNITS - expectedCredit
+    );
   });
 
   it("prorates the upgrade even when cancellation is already pending (bug fix)", async () => {
@@ -130,9 +142,11 @@ describe("prorated upgrade to yearly", () => {
     expect(outcome.kind).toBe("redirect");
     if (outcome.kind !== "redirect") return;
 
-    // 12 days remain → credit 1050/30×12 = 420 → charge 10500 − 420 = 10080.
+    // 12 days remain → credit 500000/30×12 = 200000 → charge 5000000 − 200000 = 4800000.
     expect(outcome.result.proration?.daysRemaining).toBe(12);
-    expect(outcome.result.proration?.proratedChargeMinorUnits).toBe(10080);
+    expect(outcome.result.proration?.proratedChargeMinorUnits).toBe(
+      PRO_YEARLY_MINOR_UNITS - Math.round((PRO_MONTHLY_MINOR_UNITS / 30) * 12)
+    );
 
     // The pending cancellation is superseded by the new payment intent.
     const current = await prisma.subscription.findUnique({
@@ -184,8 +198,8 @@ describe("prorated upgrade to yearly", () => {
 
     mocks.verifyTransaction.mockResolvedValue({
       status: "successful",
-      amount: 9975,
-      currency: "USD",
+      amount: PRO_YEARLY_MINOR_UNITS - Math.round((PRO_MONTHLY_MINOR_UNITS / 30) * 15),
+      currency: PLAN_CURRENCY,
       txRef,
     });
 

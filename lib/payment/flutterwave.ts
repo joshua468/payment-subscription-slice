@@ -218,7 +218,11 @@ export async function verifyTransaction(transactionId: string): Promise<{
     amount: body.data.amount ?? 0,
     currency: body.data.currency ?? "",
     txRef: body.data.tx_ref,
-    customerId: body.data.customer?.id ?? null,
+    // The provider types customer.id as number | string; our record stores a string.
+    customerId:
+      body.data.customer?.id === undefined || body.data.customer?.id === null
+        ? null
+        : String(body.data.customer.id),
     sub: body.data.sub != null ? String(body.data.sub) : null,
   };
 }
